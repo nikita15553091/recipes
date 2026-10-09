@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Рецепты</title>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #F3F6F3);
+    --fg: var(--tg-theme-text-color, #1B2420);
+    --hint: var(--tg-theme-hint-color, #6B7871);
+    --panel: var(--tg-theme-secondary-bg-color, #E6ECE7);
+    --line: color-mix(in srgb, var(--fg) 12%, transparent);
+    --accent: #2C7A58;      /* базилик */
+    --accent-ink: #FFFFFF;
+    --star: #E2A21F;        /* шафран */
+    --radius: 14px;
+  }
+  :root[data-scheme="dark"] {
+    --accent: #5CC49A;
+    --accent-ink: #0E1A14;
+    --star: #F0B94A;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font-family: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px; line-height: 1.45;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- список ---------- */
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 32px; }
+  header { padding: 20px 0 8px; }
+  h1 { margin: 0; font-size: 30px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; }
+  .sub { margin: 4px 0 0; color: var(--hint); font-size: 14px; }
+
+  .search {
+    position: sticky; top: 0; z-index: 5;
+    padding: 12px 0 8px; background: var(--bg);
+  }
+  .search input {
+    width: 100%; height: 44px; border: 0; border-radius: var(--radius);
+    padding: 0 14px; font: inherit; color: var(--fg); background: var(--panel);
+  }
+  .search input::placeholder { color: var(--hint); }
+  .search input:focus-visible { outline: 2px solid var(--accent); }
+
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 12px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; height: 36px; padding: 0 14px; border-radius: 999px;
+    background: var(--panel); font-size: 14px; font-weight: 500; white-space: nowrap;
+    transition: background .15s, color .15s;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+  .list { list-style: none; margin: 0; padding: 0; }
+  .row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); }
+  .row:last-child { border-bottom: 1px solid var(--line); }
+  .row-main { flex: 1; min-width: 0; text-align: left; padding: 14px 0; }
+  .row-title { font-weight: 600; font-size: 17px; }
+  .row-meta {
+    margin-top: 2px; color: var(--hint); font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .star { flex: none; width: 44px; height: 44px; display: grid; place-items: center; color: var(--hint); }
+  .star svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; transition: transform .15s; }
+  .star[aria-pressed="true"] { color: var(--star); }
+  .star[aria-pressed="true"] svg { fill: currentColor; }
+  .star:active svg { transform: scale(.85); }
+
+  .empty { padding: 48px 8px; text-align: center; color: var(--hint); }
+  .empty strong { display: block; color: var(--fg); font-size: 17px; margin-bottom: 4px; }
+
+  /* ---------- рецепт ---------- */
+  .detail {
+    position: fixed; inset: 0; z-index: 10; overflow-y: auto; background: var(--bg);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    transform: translateX(100%); visibility: hidden;
+    transition: transform .25s ease, visibility 0s .25s;
+  }
+  .detail.open { transform: none; visibility: visible; transition: transform .25s ease; }
+  .detail .wrap { padding-top: 20px; padding-bottom: 96px; }
+  .detail-top { display: flex; align-items: flex-start; gap: 8px; }
+  .detail-top h2 { flex: 1; margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+  .detail-top .star { margin: -4px -8px 0 0; }
+  .tag { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 999px; background: var(--panel); font-size: 13px; color: var(--hint); }
+
+  h3 { margin: 28px 0 8px; font-size: 18px; font-weight: 600; }
+  .ingredients { list-style: none; margin: 0; padding: 0; }
+  .ingredients li { border-top: 1px solid var(--line); }
+  .ingredients li:last-child { border-bottom: 1px solid var(--line); }
+  .ingredient { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 0; text-align: left; }
+  .box {
+    flex: none; width: 22px; height: 22px; border-radius: 7px;
+    border: 2px solid var(--hint); display: grid; place-items: center;
+    transition: background .15s, border-color .15s;
+  }
+  .box svg { width: 14px; height: 14px; stroke: var(--accent-ink); stroke-width: 3; fill: none; opacity: 0; }
+  .ingredient[aria-pressed="true"] .box { background: var(--accent); border-color: var(--accent); }
+  .ingredient[aria-pressed="true"] .box svg { opacity: 1; }
+  .ingredient[aria-pressed="true"] .ingredient-text { color: var(--hint); text-decoration: line-through; }
+
+  .steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  .steps li { position: relative; padding: 0 0 18px 44px; counter-increment: step; }
+  .steps li::before {
+    content: counter(step); position: absolute; left: 0; top: -1px;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink);
+    display: grid; place-items: center; font-weight: 600; font-size: 14px;
+  }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+    transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px;
+    transition: opacity .2s, transform .2s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+  .back { display: block; margin: -4px 0 12px; padding: 8px 0; color: var(--accent); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<main class="wrap" id="home">
+  <header>
+    <h1>Рецепты</h1>
+    <p class="sub" id="count"></p>
+  </header>
+  <div class="search">
+    <input id="q" type="search" placeholder="Название или ингредиенты: яйца, сыр" autocomplete="off" enterkeyhint="search" aria-label="Поиск рецептов">
+  </div>
+  <div class="chips" id="chips" role="group" aria-label="Категории"></div>
+  <ul class="list" id="list"></ul>
+  <div class="empty" id="empty" hidden></div>
+</main>
+
+<section class="detail" id="detail" aria-hidden="true">
+  <div class="wrap" id="detail-body"></div>
+</section>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var state = { recipes: [], favorites: new Set(), category: "Все", query: "", openId: null, checked: {} };
+
+  var STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.7l1-5.9L3.5 9.7l5.9-.8L12 3.5z"/></svg>';
+  var CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function el(tag, props, children) {
+    var node = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      if (k === "text") node.textContent = props[k];
+      else if (k === "html") node.innerHTML = props[k];   // только для наших констант-иконок
+      else if (k === "class") node.className = props[k];
+      else node.setAttribute(k, props[k]);
+    });
+    (children || []).forEach(function (c) { node.appendChild(c); });
+    return node;
+  }
+
+  /* ---------- Telegram ---------- */
+  if (tg) {
+    try {
+      tg.ready();
+      tg.expand();
+      document.documentElement.dataset.scheme = tg.colorScheme || "light";
+      tg.onEvent("themeChanged", function () { document.documentElement.dataset.scheme = tg.colorScheme; });
+      tg.BackButton.onClick(closeRecipe);
+    } catch (e) {}
+  }
+  function haptic(kind) {
+    try { tg.HapticFeedback.impactOccurred(kind || "light"); } catch (e) {}
+  }
+
+  /* ---------- API ---------- */
+  function api(path, options) {
+    return new Promise(function (resolve) {
+      var favs = loadFavs();
+      if (path === "/api/recipes") return resolve({ recipes: DATA, favorites: favs });
+      var id = parseInt(path.split("/").pop(), 10);
+      var i = favs.indexOf(id);
+      if (i === -1) favs.push(id); else favs.splice(i, 1);
+      saveFavs(favs);
+      resolve({ favorite: i === -1 });
+    });
+  }
+  var DATA = [{"id": 49, "title": "1", "category": "Обеды", "ingredients": "1", "steps": "1"}, {"id": 10, "title": "Банановый десерт", "category": "Десерты", "ingredients": "2 банана, 150 г йогурта, шоколад по желанию", "steps": "1. Нарежьте бананы. 2. Добавьте йогурт. 3. По желанию посыпьте тёртым шоколадом."}, {"id": 9, "title": "Блины", "category": "Десерты", "ingredients": "250 мл молока, 1 яйцо, 150 г муки, сахар", "steps": "1. Смешайте молоко, яйцо, муку и сахар. 2. Разогрейте сковороду. 3. Выпекайте тонкие блины с двух сторон."}, {"id": 23, "title": "Борщ домашний", "category": "Обеды", "ingredients": "Говядина - 400 г, Свекла - 1 шт, Капуста - 200 г, Картофель - 3 шт, Морковь - 1 шт, Томатная паста", "steps": "1. Сварите бульон из говядины. 2. Обжарьте свеклу, морковь, лук с томатной пастой. 3. Добавьте картофель, капусту и зажарку в бульон."}, {"id": 33, "title": "Гороховый суп с копченостями", "category": "Обеды", "ingredients": "Гороховый суп с копченостями", "steps": "1. Замочите горох, сварите вместе с ребрами. 2. Добавьте картофель. 3. Сделайте зажарку из лука и моркови."}, {"id": 20, "title": "Гранола с йогуртом", "category": "Завтраки", "ingredients": "Гранола - 50 г, Натуральный йогурт - 150 мл, Киви - 1 шт", "steps": "1. Нарежьте киви кубиками. 2. В стакан выложите слоями йогурт, гранолу и киви. 3. Подавайте сразу."}, {"id": 15, "title": "Гренки с чесноком", "category": "Завтраки", "ingredients": "Хлеб ржаной - 5 кусков, Чеснок - 2 зубчика, Растительное масло - 2 ст.л., Соль", "steps": "1. Нарежьте хлеб брусочками. 2. Обжарьте на масле до корочки. 3. Натрите чесноком и посолите."}, {"id": 31, "title": "Гречка с грибами", "category": "Обеды", "ingredients": "Гречневая крупа - 150 г, Шампиньоны - 200 г, Лук - 1 шт, Растительное масло, Соль", "steps": "1. Сварите гречку. 2. Обжарьте лук с грибами на сковороде. 3. Смешайте готовую гречку с зажаркой."}, {"id": 27, "title": "Грибной крем-суп", "category": "Обеды", "ingredients": "Шампиньоны - 300 г, Картофель - 2 шт, Сливки 20% - 150 мл, Лук - 1 шт, Сливочное масло", "steps": "1. Обжарьте лук и грибы. 2. Отварите картофель. 3. Соедините все, добавьте сливки, измельчите блендером и прогрейте."}, {"id": 34, "title": "Гуляш из говядины", "category": "Обеды", "ingredients": "Говядина - 500 г, Лук - 2 шт, Мука - 1 ст.л., Томатная паста - 2 ст.л., Вода - 300 мл", "steps": "1. Нарежьте мясо кубиками, обжарьте с луком. 2. Посыпьте мукой, добавьте томатную пасту. 3. Залейте водой и тушите 1.5 часа."}, {"id": 21, "title": "Драники картофельные", "category": "Завтраки", "ingredients": "Картофель - 4 шт, Яйцо - 1 шт, Мука - 1 ст.л., Соль, Растительное масло", "steps": "1. Натрите картофель на мелкой терке, отожмите сок. 2. Смешайте с яйцом, мукой и солью. 3. Обжарьте оладьями."}, {"id": 8, "title": "Жареный картофель", "category": "Ужины", "ingredients": "500 г картофеля, масло, соль", "steps": "1. Нарежьте картофель. 2. Разогрейте масло на сковороде. 3. Жарьте до золотистой корочки, периодически помешивая."}, {"id": 44, "title": "Жаркое в горшочках", "category": "Ужины", "ingredients": "Свинина - 300 г, Картофель - 4 шт, Лук - 1 шт, Грибы - 150 г, Сметана - 4 ст.л.", "steps": "1. Нарежьте мясо и овощи. 2. Разложите слоями в горшочки: мясо, лук, грибы, картофель. 3. Сверху положите сметану, влейте воду, запекайте."}, {"id": 36, "title": "Запеченная рыба с лимоном", "category": "Ужины", "ingredients": "Филе белой рыбы - 400 г, Лимон - 0.5 шт, Оливковое масло - 1 ст.л., Специи для рыбы", "steps": "1. Выложите рыбу на фольгу. 2. Посолите, полейте маслом. 3. Сверху положите кружочки лимона, заверните фольгу и запекайте 20 минут."}, {"id": 6, "title": "Картофельное пюре", "category": "Обеды", "ingredients": "500 г картофеля, 50 мл молока, 20 г сливочного масла", "steps": "1. Очистите и отварите картофель. 2. Слейте воду. 3. Добавьте молоко и масло, разомните."}, {"id": 28, "title": "Котлеты по-капитански", "category": "Обеды", "ingredients": "Фарш свино-говяжий - 500 г, Лук - 1 шт, Картофель - 2 шт, Сыр - 100 г, Майонез", "steps": "1. Сформируйте плоские котлеты, выложите на противень. 2. Сверху положите лук, затем тертый картофель. 3. Смажьте майонезом, посыпьте сыром, запекайте."}, {"id": 37, "title": "Куриные грудки в сливках", "category": "Ужины", "ingredients": "Куриное филе - 500 г, Сливки 10% - 200 мл, Чеснок - 2 зубчика, Растительное масло", "steps": "1. Нарежьте филе кусочками, обжарьте до корочки. 2. Снизьте огонь, добавьте измельченный чеснок. 3. Залейте сливками, тушите 10 минут."}, {"id": 45, "title": "Куриные крылышки барбекю", "category": "Ужины", "ingredients": "Куриные крылья - 500 г, Соус барбекю - 3 ст.л., Мед - 1 ч.л., Чеснок сушеный", "steps": "1. Замаринуйте крылья в соусе барбекю, меде и чесноке. 2. Выложите на противень. 3. Запекайте при 200 градусах 30-35 минут."}, {"id": 25, "title": "Куриный суп с лапшой", "category": "Обеды", "ingredients": "Куриные окорочка - 1 шт, Лапша - 50 г, Картофель - 2 шт, Лук, Морковь, Зелень", "steps": "1. Сварите куриный бульон. 2. Добавьте нарезанный картофель. 3. Сделайте пассеровку из лука и моркови, добавьте в суп вместе с лапшой."}, {"id": 5, "title": "Курица с рисом", "category": "Обеды", "ingredients": "200 г куриного филе, 150 г риса, соль, специи", "steps": "1. Отварите рис. 2. Нарежьте курицу и обжарьте до готовности. 3. Добавьте специи и подавайте с рисом."}, {"id": 30, "title": "Макароны по-флотски", "category": "Обеды", "ingredients": "Макароны - 250 г, Фарш мясной - 300 г, Лук - 1 шт, Сливочное масло - 20 г, Соль", "steps": "1. Отварите макароны. 2. Обжарьте лук с фаршем до готовности. 3. Смешайте макароны с фаршем и сливочным масле."}, {"id": 4, "title": "Макароны с сыром", "category": "Обеды", "ingredients": "200 г макарон, 70 г сыра, соль", "steps": "1. Отварите макароны в подсоленной воде. 2. Слейте воду. 3. Добавьте натёртый сыр и перемешайте."}, {"id": 38, "title": "Овощное рагу", "category": "Ужины", "ingredients": "Кабачок - 1 шт, Баклажан - 1 шт, Болгарский перец - 1 шт, Помидоры - 2 шт, Лук, Чеснок", "steps": "1. Нарежьте все овощи кубиками. 2. Обжарьте лук с чесноком, добавьте баклажаны и кабачки. 3. Добавьте перец и помидоры, тушите."}, {"id": 12, "title": "Овсянка с бананом", "category": "Завтраки", "ingredients": "Овсяные хлопья - 50 г, Молоко - 200 мл, Банан - 1 шт, Мед - 1 ч.л.", "steps": "1. Сварите овсянку на молоке. 2. Нарежьте банан кружочками. 3. Выложите банан на кашу, полейте медом."}, {"id": 3, "title": "Омлет", "category": "Завтраки", "ingredients": "3 яйца, 50 мл молока, соль, масло", "steps": "1. Взбейте яйца с молоком и солью. 2. Вылейте на разогретую сковороду. 3. Готовьте под крышкой 5–7 минут."}, {"id": 14, "title": "Панкейки классические", "category": "Завтраки", "ingredients": "Мука - 150 г, Молоко - 200 мл, Яйцо - 1 шт, Сахар - 2 ст.л., Разрыхлитель - 1 ч.л.", "steps": "1. Смешайте сухие ингредиенты. 2. Добавьте яйцо и молоко, размешайте. 3. Выпекайте на сухой сковороде."}, {"id": 40, "title": "Паста Карбонара", "category": "Ужины", "ingredients": "Спагетти - 200 г, Бекон - 100 г, Желтки яичные - 3 шт, Пармезан - 50 г, Черный перец", "steps": "1. Отварите спагетти. 2. Обжарьте бекон. 3. Смешайте желтки с тертым сыром. Соедините горячую пасту, бекон и соус, быстро перемешайте."}, {"id": 7, "title": "Паста с курицей", "category": "Ужины", "ingredients": "200 г макарон, 200 г курицы, 100 мл сливок, соль", "steps": "1. Отварите макароны. 2. Обжарьте кусочки курицы. 3. Добавьте сливки и готовьте 5 минут. 4. Смешайте с макаронами."}, {"id": 43, "title": "Плов с грибами", "category": "Ужины", "ingredients": "Рис - 200 г, Шампиньоны - 300 г, Морковь - 1 шт, Лук - 1 шт, Приправа для плова", "steps": "1. Обжарьте лук, морковь и грибы. 2. Добавьте рис и специи. 3. Залейте водой и готовьте на медленном огне до впитывания жидкости."}, {"id": 26, "title": "Плов с курицей", "category": "Обеды", "ingredients": "Куриное филе - 400 г, Рис - 300 г, Морковь - 2 шт, Лук - 2 шт, Чеснок - 1 головка, Специи для плова", "steps": "1. Обжарьте лук, мясо и морковь со специями. 2. Засыпьте рис, залейте водой на 1.5 см выше уровня. 3. Вставьте чеснок, готовьте до впитывания воды."}, {"id": 16, "title": "Рисовая каша на молоке", "category": "Завтраки", "ingredients": "Рис - 100 г, Молоко - 300 мл, Вода - 100 мл, Сахар - 1 ст.л., Сливочное масло", "steps": "1. Отварите рис в воде до полуготовности. 2. Добавьте молоко, сахар и варите до мягкости. 3. Добавьте масло."}, {"id": 39, "title": "Салат Цезарь с курицей", "category": "Ужины", "ingredients": "Куриное филе - 150 г, Салат Романо - 100 г, Сухарики - 30 г, Сыр Пармезан - 20 г, Соус Цезарь", "steps": "1. Обжарьте куриное филе слайсами. 2. Нарвите салат руками, смешайте с соусом. 3. Сверху выложите курицу, сухарики и пармезан."}, {"id": 46, "title": "Салат с греческим сыром", "category": "Ужины", "ingredients": "Помидоры - 2 шт, Огурцы - 2 шт, Перец болгарский - 1 шт, Сыр Фета - 100 г, Маслины - 50 г, Оливковое масло", "steps": "1. Крупно нарежьте овощи. 2. Добавьте маслины и кубики Феты. 3. Заправьте оливковым маслом и прованскими травами."}, {"id": 47, "title": "Свиные ребра в духовке", "category": "Ужины", "ingredients": "Свиные ребра - 600 г, Горчица - 1 ст.л., Кетчуп - 2 ст.л., Соевый соус - 2 ст.л.", "steps": "1. Смешайте горчицу, кетчуп и соевый соус, натрите ребра. 2. Заверните в фольгу. 3. Запекайте 1 час, затем откройте фольгу и подрумяньте."}, {"id": 13, "title": "Скрембл со шпинатом", "category": "Завтраки", "ingredients": "Яйца - 3 шт, Шпинат - 30 г, Сливочное масло - 15 г, Соль, перец", "steps": "1. Обжарьте шпинат на масле 1 минуту. 2. Взбейте яйца, вылейте на сковороду. 3. Постоянно помешивайте на слабом огне."}, {"id": 41, "title": "Стейк из свинины", "category": "Ужины", "ingredients": "Свиная шея - 2 стейка, Розмарин - 1 веточка, Чеснок - 2 зубчика, Растительное масло", "steps": "1. Обсушите мясо, посолите и поперчите. 2. Выложите на раскаленную сковороду с маслом, розмарином и чесноком. 3. Обжаривайте по 5 минут."}, {"id": 24, "title": "Суп-пюре из чечевицы", "category": "Обеды", "ingredients": "Красная чечевица - 150 г, Лук - 1 шт, Морковь - 1 шт, Лимонный сок - 1 ст.л., Специи", "steps": "1. Обжарьте лук и морковь. 2. Добавьте чечевицу и воду, варите 20 минут. 3. Пюрируйте блендером, добавьте лимонный сок."}, {"id": 2, "title": "Сырники", "category": "Завтраки", "ingredients": "200 г творога, 1 яйцо, 2 ст. л. муки, сахар", "steps": "1. Смешайте творог, яйцо, муку и сахар. 2. Сформируйте сырники. 3. Обжарьте с двух сторон до золотистой корочки."}, {"id": 18, "title": "Сэндвич с тунцом", "category": "Завтраки", "ingredients": "Тостовый хлеб - 2 куска, Консервированный тунец - 80 г, Майонез - 1 ст.л., Огурец - 30 г", "steps": "1. Разминайте тунец с майонезом. 2. Нарежьте огурец слайсами. 3. Выложите все на хлеб и накройте вторым куском."}, {"id": 17, "title": "Творог с ягодами", "category": "Завтраки", "ingredients": "Творог - 200 г, Сметана - 2 ст.л., Ягоды замороженные - 50 г, Сахарная пудра", "steps": "1. Выложите творог в пиалу. 2. Добавьте сметану. 3. Сверху украсьте ягодами и присыпьте пудрой."}, {"id": 32, "title": "Тефтели в томатном соусе", "category": "Обеды", "ingredients": "Фарш - 400 г, Рис отварной - 100 г, Лук - 1 шт, Томатная паста - 2 ст.л., Мука - 1 ст.л.", "steps": "1. Смешайте фарш, рис и измельченный лук, слепите шарики. 2. Обжарьте тефтели. 3. Залейте соусом из воды, томатной пасты и муки, тушите 20 минут."}, {"id": 48, "title": "Тёплый салат с курицей", "category": "Ужины", "ingredients": "Куриное филе - 200 г, Салатный микс - 80 г, Черри - 6 шт, Стручковая фасоль - 100 г", "steps": "1. Отварите фасоль 3 минуты. 2. Обжарьте кусочки курицы. 3. Смешайте зелень, черри, фасоль и теплую курицу, заправьте маслом."}, {"id": 29, "title": "Уха классическая", "category": "Обеды", "ingredients": "Рыба (лосось/судак) - 400 г, Картофель - 3 шт, Лук - 1 шт, Морковь - 1 шт, Пшено - 2 ст.л., Зелень", "steps": "1. Сварите рыбу, достаньте и отделите от костей. 2. В бульон бросьте картофель, морковь, лук и пшено. 3. Верните рыбу, варите до готовности."}, {"id": 42, "title": "Фаршированные перцы", "category": "Ужины", "ingredients": "Болгарский перец - 4 шт, Фарш - 300 г, Рис - 50 г, Сметана - 2 ст.л., Томатный соус - 2 ст.л.", "steps": "1. Смешайте фарш с полуотварным рисом. 2. Очистите перцы от семян, нафаршируйте. 3. Выложите в кастрюлю, залейте соусом, тушите 40 минут."}, {"id": 11, "title": "Французские тосты", "category": "Завтраки", "ingredients": "Хлеб тостовый - 4 куска, Яйцо - 2 шт, Молоко - 50 мл, Корица - 0.5 ч.л., Сливочное масло - 20 г", "steps": "1. Взбейте яйца с молоком и корицей. 2. Обмакните хлеб в смесь. 3. Обжарьте на сливочном масле с двух сторон."}, {"id": 22, "title": "Шакшука", "category": "Завтраки", "ingredients": "Яйца - 3 шт, Помидоры в соку - 200 г, Болгарский перец - 0.5 шт, Лук - 0.5 шт, Чеснок", "steps": "1. Обжарьте лук, чеснок и перец. 2. Добавьте помидоры, тушите 5 минут. 3. Сделайте углубления, разбейте яйца, готовьте под крышкой."}, {"id": 35, "title": "Щи из свежей капусты", "category": "Обеды", "ingredients": "Свинина - 300 г, Капуста - 300 г, Картофель - 3 шт, Морковь - 1 шт, Лук - 1 шт, Помидор - 1 шт", "steps": "1. Сварите мясной бульон. 2. Добавьте картофель и нашинкованную капусту. 3. Обжарьте лук, морковь и помидор, переложите в суп."}, {"id": 19, "title": "Яичница в помидоре", "category": "Завтраки", "ingredients": "Помидоры крупные - 2 шт, Яйца - 2 шт, Сыр - 30 г, Зелень, соль", "steps": "1. Срежьте верхушки помидоров, удалите мякоть. 2. Разбейте внутрь по яйцу, посолите. 3. Посыпьте сыром и запекайте."}, {"id": 1, "title": "Яичница с сыром", "category": "Завтраки", "ingredients": "2 яйца, 30 г сыра, соль, масло", "steps": "1. Разогрейте сковороду с маслом. 2. Разбейте яйца. 3. Добавьте тёртый сыр и готовьте 3–5 минут."}];
+  var memFavs = null;
+  function loadFavs() {
+    try { return JSON.parse(localStorage.getItem("recipe_favs") || "[]"); }
+    catch (e) { return memFavs || []; }
+  }
+  function saveFavs(list) {
+    memFavs = list;
+    try { localStorage.setItem("recipe_favs", JSON.stringify(list)); } catch (e) {}
+  }
+
+  function toast(text) {
+    var t = $("toast");
+    t.textContent = text;
+    t.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { t.classList.remove("show"); }, 2200);
+  }
+
+  /* ---------- данные ---------- */
+  function splitIngredients(text) {
+    return text.split(/[,;\n]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+  function splitSteps(text) {
+    var parts = text.split(/(?:^|\s)\d+\.\s+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return parts.length ? parts : [text.trim()];
+  }
+  function matches(recipe, query) {
+    if (!query) return true;
+    var hay = (recipe.title + " " + recipe.ingredients).toLowerCase();
+    return query.toLowerCase().split(/[\s,;]+/).filter(Boolean).every(function (w) { return hay.indexOf(w) !== -1; });
+  }
+  function plural(n, one, few, many) {
+    var m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
+  }
+
+  /* ---------- список ---------- */
+  function categories() {
+    var seen = [];
+    state.recipes.forEach(function (r) { if (seen.indexOf(r.category) === -1) seen.push(r.category); });
+    return ["Все"].concat(seen, ["⭐ Избранное"]);
+  }
+
+  function renderChips() {
+    var box = $("chips");
+    box.textContent = "";
+    categories().forEach(function (name) {
+      var chip = el("button", { "class": "chip", type: "button", text: name, "aria-pressed": String(state.category === name) });
+      chip.addEventListener("click", function () {
+        state.category = name;
+        haptic("light");
+        renderChips();
+        renderList();
+      });
+      box.appendChild(chip);
+    });
+  }
+
+  function visibleRecipes() {
+    return state.recipes.filter(function (r) {
+      if (state.category === "⭐ Избранное" && !state.favorites.has(r.id)) return false;
+      if (state.category !== "Все" && state.category !== "⭐ Избранное" && r.category !== state.category) return false;
+      return matches(r, state.query);
+    });
+  }
+
+  function starButton(id) {
+    var on = state.favorites.has(id);
+    var b = el("button", { "class": "star", type: "button", html: STAR, "aria-pressed": String(on), "aria-label": on ? "Убрать из избранного" : "В избранное" });
+    b.addEventListener("click", function (e) { e.stopPropagation(); toggleFavorite(id); });
+    return b;
+  }
+
+  function renderList() {
+    var items = visibleRecipes();
+    var list = $("list");
+    list.textContent = "";
+
+    var total = state.recipes.length;
+    $("count").textContent = total + " " + plural(total, "рецепт", "рецепта", "рецептов");
+
+    items.forEach(function (r) {
+      var main = el("button", { "class": "row-main", type: "button" }, [
+        el("div", { "class": "row-title", text: r.title }),
+        el("div", { "class": "row-meta", text: r.category + " · " + r.ingredients })
+      ]);
+      main.addEventListener("click", function () { openRecipe(r.id); });
+      list.appendChild(el("li", { "class": "row", "data-id": String(r.id) }, [main, starButton(r.id)]));
+    });
+
+    var empty = $("empty");
+    empty.hidden = items.length > 0;
+    if (!items.length) {
+      empty.textContent = "";
+      if (state.category === "⭐ Избранное" && !state.query) {
+        empty.appendChild(el("strong", { text: "В избранном пока пусто" }));
+        empty.appendChild(document.createTextNode("Нажмите звезду у рецепта, чтобы сохранить его здесь."));
+      } else {
+        empty.appendChild(el("strong", { text: "Ничего не найдено" }));
+        empty.appendChild(document.createTextNode("Попробуйте другое слово или уберите часть ингредиентов."));
+      }
+    }
+  }
+
+  /* ---------- рецепт ---------- */
+  function renderDetail(recipe) {
+    var body = $("detail-body");
+    body.textContent = "";
+    if (!tg) {
+      var back = el("button", { "class": "back", type: "button", text: "← Назад" });
+      back.addEventListener("click", closeRecipe);
+      body.appendChild(back);
+    }
+
+    body.appendChild(el("div", { "class": "detail-top" }, [
+      el("h2", { text: recipe.title }),
+      starButton(recipe.id)
+    ]));
+    body.appendChild(el("span", { "class": "tag", text: recipe.category }));
+
+    body.appendChild(el("h3", { text: "Ингредиенты" }));
+    var ul = el("ul", { "class": "ingredients" });
+    var done = state.checked[recipe.id] || (state.checked[recipe.id] = {});
+    splitIngredients(recipe.ingredients).forEach(function (text, i) {
+      var b = el("button", { "class": "ingredient", type: "button", "aria-pressed": String(!!done[i]) }, [
+        el("span", { "class": "box", html: CHECK }),
+        el("span", { "class": "ingredient-text", text: text })
+      ]);
+      b.addEventListener("click", function () {
+        done[i] = !done[i];
+        b.setAttribute("aria-pressed", String(!!done[i]));
+        haptic("light");
+      });
+      ul.appendChild(el("li", {}, [b]));
+    });
+    body.appendChild(ul);
+
+    body.appendChild(el("h3", { text: "Приготовление" }));
+    var ol = el("ol", { "class": "steps" });
+    splitSteps(recipe.steps).forEach(function (text) { ol.appendChild(el("li", { text: text })); });
+    body.appendChild(ol);
+  }
+
+  function openRecipe(id) {
+    var recipe = state.recipes.find(function (r) { return r.id === id; });
+    if (!recipe) return;
+    state.openId = id;
+    renderDetail(recipe);
+    var d = $("detail");
+    d.scrollTop = 0;
+    d.classList.add("open");
+    d.setAttribute("aria-hidden", "false");
+    if (tg) { try { tg.BackButton.show(); } catch (e) {} }
+  }
+
+  function closeRecipe() {
+    state.openId = null;
+    var d = $("detail");
+    d.classList.remove("open");
+    d.setAttribute("aria-hidden", "true");
+    if (tg) { try { tg.BackButton.hide(); } catch (e) {} }
+  }
+
+  /* ---------- избранное ---------- */
+  function toggleFavorite(id) {
+    var was = state.favorites.has(id);
+    // сразу обновляем интерфейс, при ошибке откатываем
+    if (was) state.favorites.delete(id); else state.favorites.add(id);
+    haptic("medium");
+    refresh();
+
+    api("/api/favorites/" + id, { method: "POST" })
+      .then(function (res) {
+        if (res.favorite) state.favorites.add(id); else state.favorites.delete(id);
+        refresh();
+        toast(res.favorite ? "Добавлено в избранное" : "Убрано из избранного");
+      })
+      .catch(function () {
+        if (was) state.favorites.add(id); else state.favorites.delete(id);
+        refresh();
+        toast("Не удалось сохранить. Проверьте соединение.");
+      });
+  }
+
+  function refresh() {
+    renderList();
+    if (state.openId !== null) {
+      var r = state.recipes.find(function (x) { return x.id === state.openId; });
+      if (r) renderDetail(r);
+    }
+  }
+
+  /* ---------- старт ---------- */
+  $("q").addEventListener("input", function (e) { state.query = e.target.value.trim(); renderList(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && state.openId !== null) closeRecipe(); });
+
+  api("/api/recipes")
+    .then(function (data) {
+      state.recipes = data.recipes;
+      state.favorites = new Set(data.favorites);
+      renderChips();
+      renderList();
+    })
+    .catch(function () {
+      var empty = $("empty");
+      empty.hidden = false;
+      empty.textContent = "";
+      empty.appendChild(el("strong", { text: "Не удалось загрузить рецепты" }));
+      empty.appendChild(document.createTextNode("Закройте приложение и откройте его снова из чата с ботом."));
+    });
+})();
+</script>
+</body>
+</html>
